@@ -35,21 +35,7 @@
 #define LOAD_FONT4  // Font 4. Medium 26 pixel high font, needs ~5848 bytes in FLASH, 96 characters
 #define LOAD_FONT6  // Font 6. Large 48 pixel font, needs ~2666 bytes in FLASH, only characters 1234567890:-.apm
 #define LOAD_FONT7  // Font 7. 7 segment 48 pixel font, needs ~2438 bytes in FLASH, only characters 1234567890:.
-#define LOAD_FONT8  // Font 8. Large 75 pixel font needs ~3256 bytes in FLASH, only characters 1234567890:-.
-
-
-// ##################################################################################
-//
-// Define whether we want to use delays or SPIF flag to control SPI transactions
-//
-// ##################################################################################
-
-// If we define F_AS_T here then delays are used between SPI transactions
-// to speed up rendering, comment out to "wait" for the SPIF flag instead
-// Commenting out the line stops use of FastPin for control lines
-
-// BUG AWAITING FIX - DO NOT COMMENT OUT IN THIS VERSION
-#define F_AS_T
+//#define LOAD_FONT8  // Font 8. Large 75 pixel font needs ~3256 bytes in FLASH, only characters 1234567890:-.
 
 
 // ##################################################################################

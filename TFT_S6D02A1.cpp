@@ -14,7 +14,6 @@
   size.
 
  ****************************************************/
-
 #include "TFT_S6D02A1.h"
 
 #include <avr/pgmspace.h>
@@ -310,10 +309,12 @@ void TFT_S6D02A1::drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
   int16_t ddF_y = - r - r;
   int16_t x = 0;
 
-  drawPixel(x0 + r, y0  , color);
-  drawPixel(x0 - r, y0  , color);
-  drawPixel(x0  , y0 - r, color);
-  drawPixel(x0  , y0 + r, color);
+  fastSetup();
+
+  fastPixel(x0 + r, y0  , color);
+  fastPixel(x0 - r, y0  , color);
+  fastPixel(x0  , y0 - r, color);
+  fastPixel(x0  , y0 + r, color);
 
   while (x < r) {
     if (f >= 0) {
@@ -325,15 +326,15 @@ void TFT_S6D02A1::drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
     ddF_x += 2;
     f += ddF_x;
 
-    drawPixel(x0 + x, y0 + r, color);
-    drawPixel(x0 - x, y0 + r, color);
-    drawPixel(x0 - x, y0 - r, color);
-    drawPixel(x0 + x, y0 - r, color);
+    fastPixel(x0 + x, y0 + r, color);
+    fastPixel(x0 - x, y0 + r, color);
+    fastPixel(x0 - x, y0 - r, color);
+    fastPixel(x0 + x, y0 - r, color);
 
-    drawPixel(x0 + r, y0 + x, color);
-    drawPixel(x0 - r, y0 + x, color);
-    drawPixel(x0 - r, y0 - x, color);
-    drawPixel(x0 + r, y0 - x, color);
+    fastPixel(x0 + r, y0 + x, color);
+    fastPixel(x0 - r, y0 + x, color);
+    fastPixel(x0 - r, y0 - x, color);
+    fastPixel(x0 + r, y0 - x, color);
   }
 }
 
@@ -436,12 +437,14 @@ void TFT_S6D02A1::drawEllipse(int16_t x0, int16_t y0, int16_t rx, int16_t ry, ui
   int32_t fy2 = 4 * ry2;
   int32_t s;
 
+  fastSetup();
+
   for (x = 0, y = ry, s = 2*ry2+rx2*(1-2*ry); ry2*x <= rx2*y; x++)
   {
-    drawPixel(x0 + x, y0 + y, color);
-    drawPixel(x0 - x, y0 + y, color);
-    drawPixel(x0 - x, y0 - y, color);
-    drawPixel(x0 + x, y0 - y, color);
+    fastPixel(x0 + x, y0 + y, color);
+    fastPixel(x0 - x, y0 + y, color);
+    fastPixel(x0 - x, y0 - y, color);
+    fastPixel(x0 + x, y0 - y, color);
     if (s >= 0)
     {
       s += fx2 * (1 - y);
@@ -452,10 +455,10 @@ void TFT_S6D02A1::drawEllipse(int16_t x0, int16_t y0, int16_t rx, int16_t ry, ui
 
   for (x = rx, y = 0, s = 2*rx2+ry2*(1-2*rx); rx2*y <= ry2*x; y++)
   {
-    drawPixel(x0 + x, y0 + y, color);
-    drawPixel(x0 - x, y0 + y, color);
-    drawPixel(x0 - x, y0 - y, color);
-    drawPixel(x0 + x, y0 - y, color);
+    fastPixel(x0 + x, y0 + y, color);
+    fastPixel(x0 - x, y0 + y, color);
+    fastPixel(x0 - x, y0 - y, color);
+    fastPixel(x0 + x, y0 - y, color);
     if (s >= 0)
     {
       s += fy2 * (1 - x);
@@ -852,6 +855,7 @@ spi_begin();
   {
     byte column[6];
     byte mask = 0x1;
+    TFT_CS_L;
     setWindow(x, y, x+5, y+8);
     for (int8_t i = 0; i < 5; i++ ) column[i] = pgm_read_byte(font + (c * 5) + i);
     column[5] = 0;
@@ -878,6 +882,7 @@ spi_begin();
       SPDR = bg;
     }
     while (!(SPSR & _BV(SPIF)));
+    TFT_CS_H;
   }
   else
   {
@@ -921,6 +926,7 @@ spi_end();
 void TFT_S6D02A1::setAddrWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
 {
   spi_begin();
+  TFT_CS_L;
   setWindow(x0, y0, x1, y1);
   TFT_CS_H;
   while (!(SPSR & _BV(SPIF)));
@@ -941,7 +947,7 @@ void TFT_S6D02A1::setWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
 
   // Column addr set
   TFT_DC_C;
-  TFT_CS_L;
+  //TFT_CS_L; // This should be set low before the function is called
 
   SPDR = S6D02A1_CASET;
   spiWait15();
@@ -1019,6 +1025,83 @@ if (addr_row != y) {
 
   SPDR = color >> 8; spiWait17();
   SPDR = color; spiWait14();
+
+  TFT_CS_H;
+
+  spi_end();
+}
+
+void TFT_S6D02A1::fastPixel(uint16_t x, uint16_t y, uint16_t color)
+{
+  // Faster range checking, possible because x and y are unsigned
+  if ((x >= _width) || (y >= _height)) return;
+  spi_begin();
+
+  TFT_DC_C;
+  TFT_CS_L;
+
+if (addr_col != x) {
+  SPDR = S6D02A1_CASET;
+  spiWait12();
+  addr_col = x;
+  TFT_DC_D;
+
+  SPDR = 0; spiWait17();
+  SPDR = x; spiWait14();
+
+  TFT_DC_C;
+}
+
+if (addr_row != y) {
+  SPDR = S6D02A1_RASET;
+  spiWait12();
+  addr_row = y;
+  TFT_DC_D;
+
+  SPDR = 0; spiWait17();
+  SPDR = y; spiWait14();
+
+  TFT_DC_C;
+}
+
+  SPDR = S6D02A1_RAMWR; spiWait15();
+
+  TFT_DC_D;
+
+  SPDR = color >> 8; spiWait17();
+  SPDR = color; spiWait14();
+
+  TFT_CS_H;
+
+  spi_end();
+}
+
+void TFT_S6D02A1::fastSetup(void)
+{
+  spi_begin();
+
+  TFT_DC_C;
+  TFT_CS_L;
+
+  SPDR = S6D02A1_CASET;
+  spiWait14();
+  TFT_DC_D;
+  SPDR = 0; spiWait17();
+  SPDR = 0; spiWait17();
+
+  SPDR = 0; spiWait14();
+  SPDR = _width-1; spiWait14();
+
+  TFT_DC_C;
+
+  SPDR = S6D02A1_RASET;
+  spiWait14();
+  TFT_DC_D;
+  SPDR = 0; spiWait17();
+  SPDR = 0; spiWait17();
+
+  SPDR = 0; spiWait14();
+  SPDR = _height-1; spiWait14();
 
   TFT_CS_H;
 
@@ -1170,6 +1253,7 @@ void TFT_S6D02A1::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint1
 	int16_t err = dx / 2;
 	int8_t ystep = (y0 < y1) ? 1 : (-1);
 
+     TFT_CS_L;
 	if (steep)	// y increments every iteration (y0 is x-axis, and x0 is y-axis)
 	{
 	  if (x1 >= _height) x1 = _height - 1;
@@ -1297,7 +1381,7 @@ void TFT_S6D02A1::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 #endif
 
   spi_begin();
-
+  TFT_CS_L;
   setWindow(x, y, x, _height);
 
   spiWrite16(color, h);
@@ -1319,6 +1403,7 @@ void TFT_S6D02A1::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 #endif
 
   spi_begin();
+  TFT_CS_L;
   setWindow(x, y, _width, y);
 
   spiWrite16(color, w);
@@ -1341,6 +1426,7 @@ void TFT_S6D02A1::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t 
 #endif
 
   spi_begin();
+  TFT_CS_L;
   setWindow(x, y, x + w - 1, y + h - 1);
 
   if (h > w) tftswap(h, w);
@@ -1587,6 +1673,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
       // Faster drawing of characters and background using block write
     {
       spi_begin();
+      TFT_CS_L;
       setWindow(x, y, (x + w * 8) - 1, y + height - 1);
 
       byte mask;
@@ -1616,6 +1703,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
         pY += textsize;
       }
       while (!(SPSR & _BV(SPIF)));
+      TFT_CS_H;
       writeEnd();
       spi_end();
     }
@@ -1642,6 +1730,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
       byte ts = textsize - 1; // Temporary copy of textsize
       // 16 bit pixel count so maximum font size is equivalent to 180x180 pixels in area
       // w is total number of pixels to plot to fill character block
+      TFT_CS_L;
       while (pc < w)
       {
         line = pgm_read_byte(flash_address);
@@ -1692,6 +1781,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
         }
       }
       while (!(SPSR & _BV(SPIF)));
+      TFT_CS_H;
       writeEnd();
       spi_end();
     }
@@ -1699,6 +1789,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
          // so use faster drawing of characters and background using block write
     {
       spi_begin();
+      TFT_CS_L;
       setWindow(x, y, x + width - 1, y + height - 1);
 
       // Maximum font size is equivalent to 180x180 pixels in area
@@ -1716,6 +1807,7 @@ int TFT_S6D02A1::drawChar(unsigned int uniCode, int x, int y, int font)
         }
       }
       while (!(SPSR & _BV(SPIF)));
+      TFT_CS_H;
       writeEnd();
       spi_end();
     }

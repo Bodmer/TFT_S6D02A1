@@ -228,6 +228,8 @@ class TFT_S6D02A1 : public Print {
   void     init(void), begin(void), // Same - begin included for backwards compatibility
 
            drawPixel(uint16_t x, uint16_t y, uint16_t color),
+           fastPixel(uint16_t x, uint16_t y, uint16_t color),
+           fastSetup(void),
 
            drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t font),
            setAddrWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1),
@@ -302,11 +304,11 @@ class TFT_S6D02A1 : public Print {
            textWidth(char *string, int font),
            fontHeight(int font);
 
+    void   setWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
+
  virtual  size_t write(uint8_t);
 
  private:
-
-    void   setWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
 
   uint8_t  tabcolor,
            colstart, rowstart; // some displays need this changed
