@@ -14,7 +14,7 @@
 // ###### EDIT THE PIN NUMBERS IN THE 3 LINES FOLLOWING TO SUIT YOUR SETUP ######
 
 #define TFT_CS  9  // Chip select control pin
-#define TFT_DC  8  // Data Command control pin
+#define TFT_DC  8  // Data Command (A0) control pin
 #define TFT_RST 7  // Reset pin (could connect to Arduino RESET pin)
 
 
