@@ -67,6 +67,8 @@ TFT_S6D02A1::TFT_S6D02A1(int16_t w, int16_t h)
 
   addr_row = 0xFF;
   addr_col = 0xFF;
+  win_xe = 0xFF;
+  win_ye = 0xFF;
 
 #ifdef LOAD_GLCD
   fontsloaded = 0x0002; // Bit 1 set
@@ -942,9 +944,6 @@ void TFT_S6D02A1::setAddrWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
 void TFT_S6D02A1::setWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
 {
 
-  addr_row = 0xFF;
-  addr_col = 0xFF;
-
   // Column addr set
   TFT_DC_C;
   //TFT_CS_L; // This should be set low before the function is called
@@ -953,21 +952,27 @@ void TFT_S6D02A1::setWindow(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
   spiWait15();
 
   TFT_DC_D;
-  SPDR = 0; spiWait17();
-  SPDR = x0; spiWait17();
-  SPDR = 0; spiWait17();
-  SPDR = x1; spiWait14();
-
+  SPDR = 0; spiWait15();
+  addr_col = 0xFF;
+  SPDR = x0; spiWait12();
+  if(x1!=win_xe) {
+    SPDR = 0; spiWait15();
+    win_xe=x1;
+    SPDR = x1; spiWait14();
+  }
   // Row addr set
   TFT_DC_C;
   SPDR = S6D02A1_RASET; spiWait15();
 
   TFT_DC_D;
-  SPDR = 0; spiWait17();
-  SPDR = y0; spiWait17();
-  SPDR = 0; spiWait17();
-  SPDR = y1; spiWait14();
-
+  SPDR = 0; spiWait15();
+  addr_row = 0xFF;
+  SPDR = y0; spiWait12();
+  if(y1!=win_ye) {
+    SPDR = 0; spiWait15();
+    win_ye=y1;
+    SPDR = y1; spiWait14();
+  }
   // write to RAM
   TFT_DC_C;
   SPDR = S6D02A1_RAMWR; spiWait14();
@@ -988,10 +993,10 @@ void TFT_S6D02A1::drawPixel(uint16_t x, uint16_t y, uint16_t color)
   if ((x >= _width) || (y >= _height)) return;
   spi_begin();
 
-  TFT_DC_C;
   TFT_CS_L;
 
 if (addr_col != x) {
+  TFT_DC_C;
   SPDR = S6D02A1_CASET;
   spiWait12();
   addr_col = x;
@@ -1000,12 +1005,11 @@ if (addr_col != x) {
   SPDR = x; spiWait17();
 
   SPDR = 0; spiWait17();
-  SPDR = x; spiWait14();
-
-  TFT_DC_C;
+  SPDR = x; spiWait12();
 }
 
 if (addr_row != y) {
+  TFT_DC_C;
   SPDR = S6D02A1_RASET;
   spiWait12();
   addr_row = y;
@@ -1015,16 +1019,18 @@ if (addr_row != y) {
 
   SPDR = 0; spiWait17();
   SPDR = y; spiWait14();
+}
 
   TFT_DC_C;
-}
 
   SPDR = S6D02A1_RAMWR; spiWait15();
 
   TFT_DC_D;
 
-  SPDR = color >> 8; spiWait17();
-  SPDR = color; spiWait14();
+  SPDR = color >> 8; spiWait15();
+  win_xe=x;
+  SPDR = color; spiWait12();
+  win_ye=y;
 
   TFT_CS_H;
 
@@ -1037,22 +1043,21 @@ void TFT_S6D02A1::fastPixel(uint16_t x, uint16_t y, uint16_t color)
   if ((x >= _width) || (y >= _height)) return;
   spi_begin();
 
-  TFT_DC_C;
   TFT_CS_L;
 
 if (addr_col != x) {
+  TFT_DC_C;
   SPDR = S6D02A1_CASET;
   spiWait12();
   addr_col = x;
   TFT_DC_D;
 
   SPDR = 0; spiWait17();
-  SPDR = x; spiWait14();
-
-  TFT_DC_C;
+  SPDR = x; spiWait12();
 }
 
 if (addr_row != y) {
+  TFT_DC_C;
   SPDR = S6D02A1_RASET;
   spiWait12();
   addr_row = y;
@@ -1060,9 +1065,9 @@ if (addr_row != y) {
 
   SPDR = 0; spiWait17();
   SPDR = y; spiWait14();
+}
 
   TFT_DC_C;
-}
 
   SPDR = S6D02A1_RAMWR; spiWait15();
 
@@ -1087,8 +1092,8 @@ void TFT_S6D02A1::fastSetup(void)
   spiWait14();
   TFT_DC_D;
   SPDR = 0; spiWait17();
-  SPDR = 0; spiWait17();
-
+  SPDR = 0; spiWait14();
+  win_xe=_width-1;
   SPDR = 0; spiWait14();
   SPDR = _width-1; spiWait14();
 
@@ -1098,8 +1103,8 @@ void TFT_S6D02A1::fastSetup(void)
   spiWait14();
   TFT_DC_D;
   SPDR = 0; spiWait17();
-  SPDR = 0; spiWait17();
-
+  SPDR = 0; spiWait14();
+  win_ye=_height-1;
   SPDR = 0; spiWait14();
   SPDR = _height-1; spiWait14();
 
@@ -1464,6 +1469,8 @@ void TFT_S6D02A1::setRotation(uint8_t m)
   byte spsr = SPSR;// We need this here for some reason...
   addr_row = 0xFF;
   addr_col = 0xFF;
+  win_xe = 0xFF;
+  win_ye = 0xFF;
 
   rotation = m % 4;
   spi_begin();
@@ -1491,6 +1498,7 @@ void TFT_S6D02A1::setRotation(uint8_t m)
       break;
   }
   spi_end();
+  fastSetup(); // Just incase setRotation is called inside a fast pixel loop
 }
 
 

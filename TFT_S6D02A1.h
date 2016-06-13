@@ -93,13 +93,10 @@ tftswap(T& a, T& b) { T t = a; a = b; b = t; }
 
 // Change the width and height if required (defined in portrait mode)
 // or use the constructor to over-ride defaults
-#define S6D02A1_TFTWIDTH  128
-#define S6D02A1_TFTHEIGHT 160
 
 #define S6D02A1_INIT_DELAY 0x80
 
 // These are the S6D02A1 control registers
-// some flags for initR() :(
 
 #define S6D02A1_TFTWIDTH  128
 #define S6D02A1_TFTHEIGHT 160
@@ -327,7 +324,7 @@ class TFT_S6D02A1 : public Print {
 
   uint16_t textcolor, textbgcolor, fontsloaded;
 
-  uint8_t  addr_row, addr_col;
+  uint8_t  addr_row, addr_col, win_xe, win_ye;
 
   uint8_t  textfont,
            textsize,
