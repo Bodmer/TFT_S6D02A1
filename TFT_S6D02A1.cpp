@@ -664,11 +664,11 @@ void TFT_S6D02A1::drawBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_
 {
 
   int16_t i, j, byteWidth = (w + 7) / 8;
-
+  fastSetup();
   for (j = 0; j < h; j++) {
     for (i = 0; i < w; i++ ) {
       if (pgm_read_byte(bitmap + j * byteWidth + i / 8) & (128 >> (i & 7))) {
-        drawPixel(x + i, y + j, color);
+        fastPixel(x + i, y + j, color);
       }
     }
   }
@@ -1037,10 +1037,56 @@ if (addr_row != y) {
   spi_end();
 }
 
-void TFT_S6D02A1::fastPixel(uint16_t x, uint16_t y, uint16_t color)
+void TFT_S6D02A1::fastPixel(uint8_t x, uint8_t y, uint16_t color)
 {
   // Faster range checking, possible because x and y are unsigned
   if ((x >= _width) || (y >= _height)) return;
+  spi_begin();
+
+  TFT_CS_L;
+
+if (addr_col != x) {
+  TFT_DC_C;
+  SPDR = S6D02A1_CASET;
+  spiWait12();
+  addr_col = x;
+  TFT_DC_D;
+
+  SPDR = 0; spiWait17();
+  SPDR = x; spiWait12();
+}
+
+if (addr_row != y) {
+  TFT_DC_C;
+  SPDR = S6D02A1_RASET;
+  spiWait12();
+  addr_row = y;
+  TFT_DC_D;
+
+  SPDR = 0; spiWait17();
+  SPDR = y; spiWait14();
+}
+
+  TFT_DC_C;
+
+  SPDR = S6D02A1_RAMWR; spiWait15();
+
+  TFT_DC_D;
+
+  SPDR = color >> 8; spiWait17();
+  SPDR = color; spiWait14();
+
+  TFT_CS_H;
+
+  spi_end();
+}
+
+void TFT_S6D02A1::fastPixel2(int16_t x, int16_t y, uint16_t color)
+{
+  // Faster range checking, possible because x and y are unsigned
+  if ((x >= _width) || (y >= _height)) return;
+  if ((x < 0) || (y < 0)) return;
+
   spi_begin();
 
   TFT_CS_L;
@@ -1089,23 +1135,25 @@ void TFT_S6D02A1::fastSetup(void)
   TFT_CS_L;
 
   SPDR = S6D02A1_CASET;
-  spiWait14();
+  spiWait15();
   TFT_DC_D;
-  SPDR = 0; spiWait17();
   SPDR = 0; spiWait14();
+  addr_col = 0;
+  SPDR = 0; spiWait12();
   win_xe=_width-1;
-  SPDR = 0; spiWait14();
+  SPDR = 0; spiWait15();
   SPDR = _width-1; spiWait14();
 
   TFT_DC_C;
 
   SPDR = S6D02A1_RASET;
-  spiWait14();
+  spiWait15();
   TFT_DC_D;
-  SPDR = 0; spiWait17();
   SPDR = 0; spiWait14();
+  addr_row = 0;
+  SPDR = 0; spiWait12();
   win_ye=_height-1;
-  SPDR = 0; spiWait14();
+  SPDR = 0; spiWait15();
   SPDR = _height-1; spiWait14();
 
   TFT_CS_H;
@@ -1149,7 +1197,7 @@ void TFT_S6D02A1::pushColor(uint16_t color, uint16_t len)
   TFT_CS_L;
   spiWrite16(color, len);
   TFT_CS_H;
-  while (!(SPSR & _BV(SPIF)));
+  //while (!(SPSR & _BV(SPIF)));
 
   spi_end();
 }
@@ -1315,11 +1363,56 @@ void TFT_S6D02A1::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint1
 			}
 		}
 	}
-      TFT_CS_H;
+     TFT_CS_H;
   spi_end();
 }
 
 #else // FAST_LINE not defined so use more compact version
+
+/*
+// Slower original GFX, but start and end can be off screen
+void TFT_S6D02A1::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+{
+  int16_t steep = abs(y1 - y0) > abs(x1 - x0);
+  if (steep) {
+    tftswap(x0, y0);
+    tftswap(x1, y1);
+  }
+
+  if (x0 > x1) {
+    tftswap(x0, x1);
+    tftswap(y0, y1);
+  }
+
+  int16_t dx, dy;
+  dx = x1 - x0;
+  dy = abs(y1 - y0);
+
+  int16_t err = dx / 2;
+  int16_t ystep;
+
+  if (y0 < y1) {
+    ystep = 1;
+  } else {
+    ystep = -1;
+  }
+
+  fastSetup();
+
+  for (; x0<=x1; x0++) {
+    if (steep) {
+      fastPixel2(y0, x0, color);
+    } else {
+      fastPixel2(x0, y0, color);
+    }
+    err -= dy;
+    if (err < 0) {
+      y0 += ystep;
+      err += dx;
+    }
+  }
+}
+*/
 
 // Slower but more compact line drawing function
 void TFT_S6D02A1::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
@@ -1381,8 +1474,9 @@ void TFT_S6D02A1::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 {
 #ifdef CLIP_CHECK
   // Rudimentary clipping
-  if ((x >= _width) || (y >= _height)) return;
-  if ((y + h - 1) >= _height) h = _height - y;
+  if ((x >= _width) || (y >= _height) || (y < 0)) return;
+  if ((y + h - 1) >= _height)  h = _height - y;
+  if (y<0) {h+=h; y=0;if (h<0) h=0;}
 #endif
 
   spi_begin();
@@ -1403,8 +1497,9 @@ void TFT_S6D02A1::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 {
 #ifdef CLIP_CHECK
   // Rudimentary clipping
-  if ((x >= _width) || (y >= _height)) return;
+  if ((x >= _width) || (y >= _height) || (y < 0)) return;
   if ((x + w - 1) >= _width)  w = _width - x;
+  if (x<0) {w+=x; x=0;if (w<0) w=0;}
 #endif
 
   spi_begin();
@@ -2110,6 +2205,9 @@ inline void spiWrite16s(uint16_t data)
 
     "	out	%[spi],%[lo]\n"			// write SPI data
     "	nop         \n"	// 1
+    " adiw  r24,0	  \n"	// 3
+    " adiw  r24,0      \n"	// 5
+
     "5:\n"
     : [temp] "=d" (temp)
     : [spi] "i" (_SFR_IO_ADDR(SPDR)), [lo] "r" ((uint8_t)data), [hi] "r" ((uint8_t)(data>>8))
